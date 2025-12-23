@@ -5,19 +5,6 @@ function cleanSymbol(symbol) {
   return { symbolOnly, exchange };
 }
 
-exports.checkExists = async (symbol) => {
-  const { symbolOnly } = cleanSymbol(symbol);
-
-  const { data, error } = await supabase
-    .from("watchlist")
-    .select("*")
-    .eq("symbol", symbolOnly)
-    .limit(1);
-
-  if (error) throw new Error(error.message);
-  return data?.length > 0;
-};
-
 exports.getLatest = async (symbol) => {
   const { symbolOnly } = cleanSymbol(symbol);
 
@@ -49,7 +36,7 @@ exports.insertMany = async (symbol, rows) => {
   }));
 
   const { error } = await supabase.from("prices").upsert(data, {
-    onConflict: "symbol",
+    onConflict: "symbol, date",
   });
   if (error) throw new Error(error.message);
 };

@@ -1,5 +1,5 @@
 const PriceModel = require("../models/price.model");
-const logger = require("../utils/logger");
+const WatchlistModel = require("../models/watchlist.model");
 const EODHD = require("./providers/eodhd.provider");
 
 exports.getPrice = async (symbol) => {
@@ -15,7 +15,12 @@ exports.getPrice = async (symbol) => {
   // If no data existed
   if (!latest) {
     const api = await EODHD.fetchPrice(symbol, { mode: "historical" });
-    if (api?.length > 0) await PriceModel.insertMany(symbol, api);
+
+    const inWatchlist = await WatchlistModel.checkExists(symbol);
+    if (inWatchlist && api?.length > 0) {
+      await PriceModel.insertMany(symbol, api);
+    }
+
     return api;
   }
 
