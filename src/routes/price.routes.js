@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const PriceController = require("../controllers/price.controller");
-const { authMiddleware } = require("../config/supabase");
+const { authMiddleware } = require("../middleware/user.auth");
 
 router.post("/get", authMiddleware, PriceController.getPrice);
 router.post("/sync-latest", authMiddleware, PriceController.syncLatest);
