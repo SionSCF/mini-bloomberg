@@ -1,53 +1,93 @@
-const { supabase } = require("../config/supabase");
+const logger = require("../utils/logger");
 
 function cleanSymbol(symbol) {
   const [symbolOnly, exchange] = symbol.split(".");
   return { symbolOnly, exchange };
 }
 
-exports.checkExists = async (symbol) => {
+exports.check = async (supabaseUser, symbol, userId) => {
+  console.log(supabaseUser);
   const { symbolOnly } = cleanSymbol(symbol);
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseUser
     .from("watchlist")
-    .select("*")
+    .select("id")
     .eq("symbol", symbolOnly)
-    .limit(1);
+    .eq("user_id", userId)
+    .maybeSingle();
 
-  if (error) throw new Error(error.message);
-  return data?.length > 0;
+  if (error) {
+    logger.error(`Failed to check watchlist for ${symbol}: ${error.message}`);
+    throw new Error(error.message);
+  }
+
+  // turn query result into boolean
+  return !!data;
 };
 
-exports.add = async (symbol) => {
+exports.add = async (supabaseUser, symbol, userId) => {
   const [symbolOnly, exchange] = symbol.split(".");
-  console.log(symbolOnly, exchange);
-  const { data, error } = await supabase
+  const { data, error } = await supabaseUser
     .from("watchlist")
     .insert({
+      user_id: userId,
       symbol: symbolOnly,
       exchange: exchange,
       active: true,
-      created_at: new Date(),
     })
     .select();
 
-  if (error) throw error;
+  if (error) {
+    logger.error(`Failed to add ${symbol} to watchlist: ${error.message}`);
+    throw new Error(error.message);
+  }
   return data[0];
 };
 
-exports.remove = async (symbol) => {
-  const { data, error } = await supabase
+exports.remove = async (supabaseUser, symbol, userId) => {
+  const [symbolOnly, exchange] = symbol.split(".");
+
+  // implement soft delete
+  const { data, error } = await supabaseUser
     .from("watchlist")
-    .delete()
-    .eq("symbol", symbol)
+    .update({ active: false })
+    .eq("symbol", symbolOnly)
+    .eq("exchange", exchange)
+    .eq("user_id", userId)
     .select();
 
-  if (error) throw error;
+  if (error) {
+    logger.error(`Failed to remove ${symbol} from watchlist: ${error.message}`);
+    throw new Error(error.message);
+  }
+
   return data[0];
 };
 
-exports.list = async () => {
-  const { data, error } = await supabase.from("watchlist").select("*");
-  if (error) throw error;
+exports.list = async (supabaseUser, userId) => {
+  // ensure only active symbols are listed
+  const { data, error } = await supabaseUser
+    .from("watchlist")
+    .select("*")
+    .eq("active", true)
+    .eq("user_id", userId);
+  if (error) {
+    logger.error(`Failed to list watchlist: ${error.message}`);
+    throw new Error(error.message);
+  }
+
+  return data;
+};
+
+exports.retrieveListForAutoSync = async (supabaseService) => {
+  const { data, error } = await supabaseService
+    .from("watchlist")
+    .select("*")
+    .eq("active", true);
+  if (error) {
+    logger.error(`Failed to retrieve watchlist for autosync: ${error.message}`);
+    throw new Error(error.message);
+  }
+
   return data;
 };

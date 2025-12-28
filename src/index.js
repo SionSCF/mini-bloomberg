@@ -3,6 +3,8 @@ const express = require("express");
 const dotenv = require("dotenv");
 const cors = require("cors");
 const helmet = require("helmet");
+const logger = require("./utils/logger");
+const morgan = require("morgan");
 
 // Load .env.local first (if present), then fallback to .env
 dotenv.config({ path: ".env.local" });
@@ -14,6 +16,14 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json());
 
+app.use(
+  morgan("combined", {
+    stream: {
+      write: (message) => logger.info(message.trim()),
+    },
+  })
+);
+
 const PORT = process.env.PORT || 5000;
 
 // Cron scheduling lives in a separate module to keep the entrypoint thin
@@ -21,7 +31,7 @@ const { startCronIfEnabled } = require("./cron/scheduler");
 startCronIfEnabled();
 
 const server = app.listen(PORT, () =>
-  console.log(`\x1b[32mServer running on port ${PORT}\x1b[0m`)
+  logger.info(`Server running on port ${PORT}`)
 );
 
 app.get("/", (req, res) => {
@@ -37,6 +47,6 @@ app.use("/api/watchlist", require("./routes/watchlist.routes"));
 app.use("/api/user", require("./routes/user.routes"));
 
 process.on("SIGINT", () => {
-  console.log("\x1b[33mGracefully shutting down...\x1b[0m");
+  logger.info("\x1b[33mGracefully shutting down...\x1b[0m");
   server.close(() => process.exit(0));
 });

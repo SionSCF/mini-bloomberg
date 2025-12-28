@@ -1,62 +1,94 @@
 const PriceModel = require("../models/price.model");
-const WatchlistModel = require("../models/watchlist.model");
+const WatchlistService = require("./watchlist.service");
 const EODHD = require("./providers/eodhd.provider");
+const analysisService = require("./analysis.service");
 
-exports.getPrice = async (symbol) => {
+// ==================== //
+//  INTERNAL FUNCTIONS  //
+// ==================== //
+
+// Universal function that can be used by user request and cron job
+// to ensure that price data is always fresh and up to date,
+// and returns the time series data, standardizing the response.
+const ensurePriceData = async (supabase, symbol, user) => {
   const today = new Date();
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
-
   const yDate = yesterday.toISOString().split("T")[0];
   const oneDay = 24 * 60 * 60 * 1000;
 
-  const latest = await PriceModel.getLatest(symbol);
+  const latest = await PriceModel.getLatest(supabase, symbol);
 
   // If no data existed
   if (!latest) {
-    const api = await EODHD.fetchPrice(symbol, { mode: "historical" });
+    const result = await EODHD.fetchPrice(symbol, {
+      mode: "historical",
+    });
 
-    const inWatchlist = await WatchlistModel.checkExists(symbol);
-    if (inWatchlist && api?.length > 0) {
-      await PriceModel.insertMany(symbol, api);
+    const activeSymbols = await WatchlistService.checkExists(
+      supabase,
+      symbol,
+      user
+    );
+    const isInWatchlist = !!activeSymbols;
+
+    if (isInWatchlist && result?.length > 0) {
+      await PriceModel.insertMany(supabase, symbol, result);
+      return await PriceModel.getTimeSeries(supabase, symbol);
     }
-
-    return api;
+    return result;
   }
 
-  const latestDateStr = new Date(latest.date).toISOString().split("T")[0];
+  const latestDate = new Date(latest.date);
+  const latestDateStr = latestDate.toISOString().split("T")[0];
 
   // If latest date is the same as yesterday's date
   if (latestDateStr === yDate) {
-    return [latest];
+    return await PriceModel.getTimeSeries(supabase, symbol);
   }
 
   // Gap calculation
-  const diffDays = Math.round(
-    Math.abs((new Date(latest.date) - yesterday) / oneDay)
-  );
+  const diffDays = Math.round(Math.abs((latestDate - yesterday) / oneDay));
 
   // If gap is above 1 day(s)
   if (diffDays > 1) {
-    const nextDate = new Date(latest.date);
-    nextDate.setDate(nextDate.getDate() + 1);
+    const from = new Date(latestDate);
+    from.setDate(from.getDate() + 1);
 
-    const from = nextDate.toISOString().split("T")[0];
+    const fromStr = from.toISOString().split("T")[0];
 
-    const api = await EODHD.fetchPrice(symbol, {
+    const result = await EODHD.fetchPrice(symbol, {
       mode: "range",
-      from,
+      from: fromStr,
       to: yDate,
     });
 
-    if (api?.length > 0) await PriceModel.insertMany(symbol, api);
-    return api;
+    if (result?.length > 0)
+      await PriceModel.insertMany(supabase, symbol, result);
+
+    return await PriceModel.getTimeSeries(supabase, symbol);
   }
 
   // Fetch daily only
-  const api = await EODHD.fetchPrice(symbol, { mode: "latest" });
-  if (api?.length > 0) await PriceModel.insertMany(symbol, api);
-  return api;
+  const result = await EODHD.fetchPrice(symbol, { mode: "latest" });
+  if (result?.length > 0) await PriceModel.insertMany(supabase, symbol, result);
+
+  return await PriceModel.getTimeSeries(supabase, symbol);
+};
+
+// ==================== //
+//  EXPORTED FUNCTIONS  //
+// ==================== //
+
+// Get price data
+exports.getPrice = async (supabaseUser, symbol, user) => {
+  const timeSeries = await ensurePriceData(supabaseUser, symbol, user);
+  const analysis = await analysisService.performTechnicalAnalysis(timeSeries, {
+    sma: [20, 50, 200],
+    ema: [20, 50, 200],
+    bollinger: [20],
+  });
+  return { timeSeries, analysis };
 };
 
 // Sync latest data for cron
@@ -67,9 +99,9 @@ exports.syncLatest = async (symbol) => {
 };
 
 // Sync historical for first time add to watchlist
-exports.syncHistorical = async (symbol) => {
+exports.syncHistorical = async (supabase, symbol) => {
   const api = await EODHD.fetchPrice(symbol, { mode: "historical" });
-  await PriceModel.insertMany(symbol, api);
+  await PriceModel.insertMany(supabase, symbol, api);
   return api;
 };
 
