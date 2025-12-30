@@ -45,6 +45,7 @@ app.get("/health", (req, res) =>
 app.use("/api/prices", require("./routes/price.routes"));
 app.use("/api/watchlist", require("./routes/watchlist.routes"));
 app.use("/api/user", require("./routes/user.routes"));
+app.use("/api/symbols", require("./routes/ticker.routes"));
 
 process.on("SIGINT", () => {
   logger.info("Gracefully shutting down...");
