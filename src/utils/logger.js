@@ -2,7 +2,7 @@ const { createLogger, format, transports } = require("winston");
 const DailyRotateFile = require("winston-daily-rotate-file");
 
 const logger = createLogger({
-  level: process.env.LOG_LEVEL || "INFO",
+  level: process.env.LOG_LEVEL || "info",
   format: format.combine(
     format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
     format.errors({ stack: true }),

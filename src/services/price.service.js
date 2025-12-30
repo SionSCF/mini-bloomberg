@@ -1,7 +1,7 @@
 const PriceModel = require("../models/price.model");
 const WatchlistService = require("./watchlist.service");
 const EODHD = require("./providers/eodhd.provider");
-const analysisService = require("./analysis.service");
+const AnalysisService = require("./analysis.service");
 
 // ==================== //
 //  INTERNAL FUNCTIONS  //
@@ -83,19 +83,14 @@ const ensurePriceData = async (supabase, symbol, user) => {
 // Get price data
 exports.getPrice = async (supabaseUser, symbol, user) => {
   const timeSeries = await ensurePriceData(supabaseUser, symbol, user);
-  const analysis = await analysisService.performTechnicalAnalysis(timeSeries, {
+  const analysis = await AnalysisService.performTechnicalAnalysis(timeSeries, {
     sma: [20, 50, 200],
     ema: [20, 50, 200],
     bollinger: [20],
+    macd: true,
+    rsi: { period: 14 },
   });
   return { timeSeries, analysis };
-};
-
-// Sync latest data for cron
-exports.syncLatest = async (symbol) => {
-  const api = await EODHD.fetchPrice(symbol, { mode: "latest" });
-  await PriceModel.insertMany(symbol, api);
-  return api;
 };
 
 // Sync historical for first time add to watchlist
@@ -105,9 +100,20 @@ exports.syncHistorical = async (supabase, symbol) => {
   return api;
 };
 
+// ==================== //
+//    CRON FUNCTIONS    //
+// ==================== //
+
+// Sync latest data for cron
+exports.syncLatest = async (supabaseService, symbol) => {
+  const api = await EODHD.fetchPrice(symbol, { mode: "latest" });
+  await PriceModel.insertMany(supabaseService, symbol, api);
+  return api;
+};
+
 // Sync missing data from failed cron execution
-exports.syncMissing = async (symbol) => {
-  const gaps = await PriceModel.findGaps(symbol);
+exports.syncMissing = async (supabase, symbol) => {
+  const gaps = await PriceModel.findGaps(supabase, symbol);
   if (!gaps || gaps.length === 0) return [];
   let results = [];
   for (const gap of gaps) {
@@ -116,7 +122,14 @@ exports.syncMissing = async (symbol) => {
       from: gap.from,
       to: gap.to,
     });
-    await PriceModel.insertMany(symbol, api);
+
+    if (!Array.isArray(api) || api.length === 0) {
+      logger.warn(
+        `No data returned for ${symbol} from ${gap.from} to ${gap.to}`
+      );
+      continue;
+    }
+    await PriceModel.insertMany(supabase, symbol, api);
     results.push(...api);
   }
   return results;

@@ -47,6 +47,6 @@ app.use("/api/watchlist", require("./routes/watchlist.routes"));
 app.use("/api/user", require("./routes/user.routes"));
 
 process.on("SIGINT", () => {
-  logger.info("\x1b[33mGracefully shutting down...\x1b[0m");
+  logger.info("Gracefully shutting down...");
   server.close(() => process.exit(0));
 });

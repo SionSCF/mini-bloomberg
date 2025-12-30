@@ -6,7 +6,6 @@ function cleanSymbol(symbol) {
 }
 
 exports.check = async (supabaseUser, symbol, userId) => {
-  console.log(supabaseUser);
   const { symbolOnly } = cleanSymbol(symbol);
 
   const { data, error } = await supabaseUser

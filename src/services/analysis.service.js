@@ -1,6 +1,8 @@
 const { calculateSMA } = require("./analysis/sma.analysis");
 const { calculateEMA } = require("./analysis/ema.analysis");
 const { calculateBollingerBands } = require("./analysis/bollinger.analysis");
+const { calculateMACD } = require("./analysis/macd.analysis");
+const { calculateRSI } = require("./analysis/rsi.analysis");
 
 exports.performTechnicalAnalysis = async (prices, options = {}) => {
   const analysis = {};
@@ -27,6 +29,14 @@ exports.performTechnicalAnalysis = async (prices, options = {}) => {
         period
       );
     }
+  }
+
+  if (options.macd) {
+    analysis.macd = await calculateMACD(prices);
+  }
+
+  if (options.rsi) {
+    analysis.rsi = await calculateRSI(prices, options.rsi.period || 14);
   }
 
   return analysis;
