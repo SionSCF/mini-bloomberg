@@ -13,6 +13,7 @@ exports.check = async (supabaseUser, symbol, userId) => {
     .select("id")
     .eq("symbol", symbolOnly)
     .eq("user_id", userId)
+    .eq("active", true)
     .maybeSingle();
 
   if (error) {
@@ -46,6 +47,7 @@ exports.add = async (supabaseUser, symbol, userId) => {
 exports.remove = async (supabaseUser, symbol, userId) => {
   const [symbolOnly, exchange] = symbol.split(".");
 
+  console.log(`Symbol is removed: `, symbol);
   // implement soft delete
   const { data, error } = await supabaseUser
     .from("watchlist")
@@ -66,10 +68,10 @@ exports.remove = async (supabaseUser, symbol, userId) => {
 exports.list = async (supabaseUser, userId) => {
   // ensure only active symbols are listed
   const { data, error } = await supabaseUser
-    .from("watchlist")
+    .from("watchlist_enriched")
     .select("*")
-    .eq("active", true)
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .eq("active", true);
   if (error) {
     logger.error(`Failed to list watchlist: ${error.message}`);
     throw new Error(error.message);

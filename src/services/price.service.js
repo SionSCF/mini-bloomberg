@@ -36,7 +36,9 @@ const ensurePriceData = async (supabase, symbol, user) => {
       await PriceModel.insertMany(supabase, symbol, result);
       return await PriceModel.getTimeSeries(supabase, symbol);
     }
-    return result;
+
+    const sorted = result.sort((a, b) => new Date(a.date) - new Date(b.date));
+    return sorted;
   }
 
   const latestDate = new Date(latest.date);
@@ -76,6 +78,25 @@ const ensurePriceData = async (supabase, symbol, user) => {
   return await PriceModel.getTimeSeries(supabase, symbol);
 };
 
+const enrichPriceData = (prices) => {
+  if (prices.length < 2) return prices;
+
+  const prevClose = prices[0].close;
+  const last_price = prevClose;
+
+  return prices.map((price) => {
+    const change = price.close - prevClose;
+    const change_percent = (change / prevClose) * 100;
+
+    return {
+      ...price,
+      change,
+      change_percent,
+      last_price,
+    };
+  });
+};
+
 // ==================== //
 //  EXPORTED FUNCTIONS  //
 // ==================== //
@@ -83,19 +104,37 @@ const ensurePriceData = async (supabase, symbol, user) => {
 // Get price data
 exports.getPrice = async (supabaseUser, symbol, user) => {
   const timeSeries = await ensurePriceData(supabaseUser, symbol, user);
-  const analysis = await AnalysisService.performTechnicalAnalysis(timeSeries, {
-    sma: [20, 50, 200],
-    ema: [20, 50, 200],
-    bollinger: [20],
-    macd: true,
-    rsi: { period: 14 },
-  });
-  return { timeSeries, analysis };
+
+  if (timeSeries.reason === "RATE_LIMIT") {
+    const cached = await PriceModel.getTimeSeries(supabaseUser, symbol);
+
+    if (!cached) {
+      return null, timeSeries.resetAt;
+    }
+    timeSeries = cached;
+  }
+  const enrichedPriceData = await enrichPriceData(timeSeries);
+  const analysis = await AnalysisService.performTechnicalAnalysis(
+    enrichedPriceData,
+    {
+      sma: [20, 50, 200],
+      ema: [12, 20, 26, 50, 200],
+      bollinger: [20],
+      macd: true,
+      rsi: { period: 14 },
+    }
+  );
+
+  return analysis;
 };
 
 // Sync historical for first time add to watchlist
 exports.syncHistorical = async (supabase, symbol) => {
   const api = await EODHD.fetchPrice(symbol, { mode: "historical" });
+  console.log(symbol);
+  if (api) {
+    console.log("insert price data successful");
+  }
   await PriceModel.insertMany(supabase, symbol, api);
   return api;
 };

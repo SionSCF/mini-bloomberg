@@ -9,7 +9,7 @@ exports.getPrice = async (req, res) => {
       symbol,
       req.user
     );
-    res.json({ message: "Fetched", data });
+    res.json(data);
   } catch (err) {
     logger.error(`Error in getPrice: ${err.message}`);
     res.status(500).json({ error: err.message });

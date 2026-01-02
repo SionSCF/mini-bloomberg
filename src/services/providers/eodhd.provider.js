@@ -2,6 +2,12 @@ const axios = require("axios");
 
 const BASE_URL = "https://www.eodhd.com/api/eod";
 
+const inferResetTime = () => {
+  const reset = new Date();
+  reset.setUTCHours(24, 0, 0, 0);
+  return reset.toISOString();
+};
+
 exports.fetchPrice = async (symbol, { mode, from, to } = {}) => {
   const params = {
     api_token: process.env.EODHD_API_KEY,
@@ -38,24 +44,36 @@ exports.fetchPrice = async (symbol, { mode, from, to } = {}) => {
     params.to = to;
   }
 
-  const res = await axios.get(`${BASE_URL}/${encodeURIComponent(symbol)}`, {
-    params,
-    timeout: 5000,
-  });
+  try {
+    const res = await axios.get(`${BASE_URL}/${encodeURIComponent(symbol)}`, {
+      params,
+      timeout: 5000,
+    });
 
-  if (!Array.isArray(res.data)) throw new Error("Invalid API response");
+    if (!Array.isArray(res.data)) throw new Error("Invalid API response");
 
-  // Build data rows
-  return res.data.map((row) => ({
-    symbol: symbolOnly,
-    exchange: exchange,
-    date: row.date,
-    open: Number(row.open),
-    high: Number(row.high),
-    low: Number(row.low),
-    close: Number(row.close),
-    adjusted_close: Number(row.adjusted_close || row.adj_close),
-    volume: Number(row.volume),
-    provider: "EODHD",
-  }));
+    // Build data rows
+    return res.data.map((row) => ({
+      ok: true,
+      symbol: symbolOnly,
+      exchange: exchange,
+      date: row.date,
+      open: Number(row.open),
+      high: Number(row.high),
+      low: Number(row.low),
+      close: Number(row.close),
+      adjusted_close: Number(row.adjusted_close || row.adj_close),
+      volume: Number(row.volume),
+      provider: "EODHD",
+    }));
+  } catch (err) {
+    if (err.response?.status === 429) {
+      return {
+        ok: false,
+        reason: "RATE_LIMIT",
+        resetAt: inferResetTime(),
+      };
+    }
+    throw err;
+  }
 };

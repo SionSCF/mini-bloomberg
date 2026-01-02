@@ -4,17 +4,24 @@ const logger = require("../utils/logger");
 
 exports.add = async (req, res) => {
   try {
-    const { symbol } = req.body;
-
+    const { symbol, exchange } = req.body;
+    const fullSymbol = `${symbol}.${exchange}`;
     // Add to watchlist
     const added = await WatchlistService.addToList(
       req.supabaseUser,
-      symbol,
+      fullSymbol,
       req.user
     );
 
     // Load historical 1 year
-    await PriceService.syncHistorical(req.supabaseUser, symbol);
+    const insert = await PriceService.syncHistorical(
+      req.supabaseUser,
+      fullSymbol
+    );
+
+    if (insert) {
+      console.log("Price data inputted successfully");
+    }
 
     res.json({ message: "Added to watchlist", data: added });
   } catch (err) {
@@ -25,11 +32,13 @@ exports.add = async (req, res) => {
 
 exports.remove = async (req, res) => {
   try {
-    const { symbol } = req.body;
+    const { symbol, exchange } = req.body;
+    const fullSymbol = `${symbol}.${exchange}`;
+    console.log(req.body);
 
     const removed = await WatchlistService.removeSymbol(
       req.supabaseUser,
-      symbol,
+      fullSymbol,
       req.user
     );
 
