@@ -36,7 +36,9 @@ const ensurePriceData = async (supabase, symbol, user) => {
       await PriceModel.insertMany(supabase, symbol, result);
       return await PriceModel.getTimeSeries(supabase, symbol);
     }
-    return result;
+
+    const sorted = result.sort((a, b) => new Date(a.date) - new Date(b.date));
+    return sorted;
   }
 
   const latestDate = new Date(latest.date);
@@ -80,15 +82,17 @@ const enrichPriceData = (prices) => {
   if (prices.length < 2) return prices;
 
   const prevClose = prices[0].close;
+  const last_price = prevClose;
 
   return prices.map((price) => {
     const change = price.close - prevClose;
-    const changePercent = (change / prevClose) * 100;
+    const change_percent = (change / prevClose) * 100;
 
     return {
       ...price,
       change,
-      changePercent,
+      change_percent,
+      last_price,
     };
   });
 };
@@ -99,11 +103,16 @@ const enrichPriceData = (prices) => {
 
 // Get price data
 exports.getPrice = async (supabaseUser, symbol, user) => {
-  const timeSeries = await ensurePriceData(supabaseUser, symbol, user).then(
-    (timeSeries) => {
-      return enrichPriceData(timeSeries);
+  const timeSeries = await ensurePriceData(supabaseUser, symbol, user);
+
+  if (timeSeries.reason === "RATE_LIMIT") {
+    const cached = await PriceModel.getTimeSeries(supabaseUser, symbol);
+
+    if (!cached) {
+      return null, timeSeries.resetAt;
     }
-  );
+    timeSeries = cached;
+  }
   const enrichedPriceData = await enrichPriceData(timeSeries);
   const analysis = await AnalysisService.performTechnicalAnalysis(
     enrichedPriceData,
@@ -122,6 +131,10 @@ exports.getPrice = async (supabaseUser, symbol, user) => {
 // Sync historical for first time add to watchlist
 exports.syncHistorical = async (supabase, symbol) => {
   const api = await EODHD.fetchPrice(symbol, { mode: "historical" });
+  console.log(symbol);
+  if (api) {
+    console.log("insert price data successful");
+  }
   await PriceModel.insertMany(supabase, symbol, api);
   return api;
 };

@@ -3,9 +3,9 @@ const logger = require("../utils/logger");
 
 exports.searchTicker = async (req, res) => {
   try {
-    const { symbol } = req.body;
+    const symbol = req.body.query;
     const data = await searchTickers(req.supabaseUser, symbol);
-    res.json({ message: "Tickers found", data });
+    res.json(data);
   } catch (err) {
     logger.error(`Error in searchTicker: ${err.message}`);
     res.status(500).json({ error: err.message });

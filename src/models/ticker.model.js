@@ -9,8 +9,6 @@ exports.search = async (supabaseUser, keyword) => {
     )
     .limit(50);
 
-  console.log(data);
-
   if (error) {
     logger.error(`Error searching tickers: ${error.message}`);
     throw new Error(error.message);

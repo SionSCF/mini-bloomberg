@@ -56,7 +56,7 @@ exports.performTechnicalAnalysis = async (prices, options = {}) => {
     rsi: indicators.rsi[i].value ?? null,
 
     macd: indicators.macd?.line?.[i].value,
-    macdSignal: indicators.macd?.signal?.[i].value,
-    macdHistogram: indicators.macd?.histogram?.[i].value,
+    signal: indicators.macd?.signal?.[i].value,
+    histogram: indicators.macd?.histogram?.[i].value,
   }));
 };
