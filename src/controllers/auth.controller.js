@@ -1,11 +1,13 @@
+const { http } = require("winston");
 const { supabaseAuth } = require("../config/supabase.auth");
 const logger = require("../utils/logger");
 
 async function signUp(req, res) {
   try {
-    const { email, password } = req.body;
+    const { name, email, password } = req.body;
 
     const { data, error } = await supabaseAuth.auth.signUp({
+      name,
       email,
       password,
     });
@@ -37,13 +39,21 @@ async function login(req, res) {
 
   const token = data.session.access_token;
 
-  return res.json({
-    message: "Login successful",
-    data: {
-      token,
-      email: data.user.email,
-    },
-  });
+  return res
+    .cookie("auth_token", token, {
+      httpOnly: true,
+      secure: false,
+      sameSite: "Lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    })
+    .status(200)
+    .json({
+      message: "Login successful",
+      data: {
+        token,
+        email: data.user.email,
+      },
+    });
 }
 
 module.exports = { signUp, login };

@@ -66,9 +66,8 @@ exports.remove = async (supabaseUser, symbol, userId) => {
 exports.list = async (supabaseUser, userId) => {
   // ensure only active symbols are listed
   const { data, error } = await supabaseUser
-    .from("watchlist")
+    .from("watchlist_enriched")
     .select("*")
-    .eq("active", true)
     .eq("user_id", userId);
   if (error) {
     logger.error(`Failed to list watchlist: ${error.message}`);

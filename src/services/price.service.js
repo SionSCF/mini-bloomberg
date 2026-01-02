@@ -76,21 +76,47 @@ const ensurePriceData = async (supabase, symbol, user) => {
   return await PriceModel.getTimeSeries(supabase, symbol);
 };
 
+const enrichPriceData = (prices) => {
+  if (prices.length < 2) return prices;
+
+  const prevClose = prices[0].close;
+
+  return prices.map((price) => {
+    const change = price.close - prevClose;
+    const changePercent = (change / prevClose) * 100;
+
+    return {
+      ...price,
+      change,
+      changePercent,
+    };
+  });
+};
+
 // ==================== //
 //  EXPORTED FUNCTIONS  //
 // ==================== //
 
 // Get price data
 exports.getPrice = async (supabaseUser, symbol, user) => {
-  const timeSeries = await ensurePriceData(supabaseUser, symbol, user);
-  const analysis = await AnalysisService.performTechnicalAnalysis(timeSeries, {
-    sma: [20, 50, 200],
-    ema: [20, 50, 200],
-    bollinger: [20],
-    macd: true,
-    rsi: { period: 14 },
-  });
-  return { timeSeries, analysis };
+  const timeSeries = await ensurePriceData(supabaseUser, symbol, user).then(
+    (timeSeries) => {
+      return enrichPriceData(timeSeries);
+    }
+  );
+  const enrichedPriceData = await enrichPriceData(timeSeries);
+  const analysis = await AnalysisService.performTechnicalAnalysis(
+    enrichedPriceData,
+    {
+      sma: [20, 50, 200],
+      ema: [12, 20, 26, 50, 200],
+      bollinger: [20],
+      macd: true,
+      rsi: { period: 14 },
+    }
+  );
+
+  return analysis;
 };
 
 // Sync historical for first time add to watchlist

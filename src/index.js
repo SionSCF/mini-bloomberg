@@ -5,6 +5,8 @@ const cors = require("cors");
 const helmet = require("helmet");
 const logger = require("./utils/logger");
 const morgan = require("morgan");
+const ratelimit = require("express-rate-limit");
+const cookieParser = require("cookie-parser");
 
 // Load .env.local first (if present), then fallback to .env
 dotenv.config({ path: ".env.local" });
@@ -13,8 +15,14 @@ dotenv.config();
 const app = express();
 
 app.use(helmet());
-app.use(cors());
+app.use(
+  cors({
+    origin: "http://localhost:8080",
+    credentials: true,
+  })
+);
 app.use(express.json());
+app.use(cookieParser());
 
 app.use(
   morgan("combined", {
@@ -42,10 +50,46 @@ app.get("/health", (req, res) =>
   res.json({ status: "ok", uptime: process.uptime() })
 );
 
-app.use("/api/prices", require("./routes/price.routes"));
-app.use("/api/watchlist", require("./routes/watchlist.routes"));
-app.use("/api/user", require("./routes/user.routes"));
-app.use("/api/symbols", require("./routes/ticker.routes"));
+app.use(
+  "/api/prices",
+  require("./routes/price.routes"),
+  ratelimit({
+    windowMs: 1 * 60 * 1000, // 1 minute
+    max: 100, // limit each IP to 100 requests per windowMs
+    standardHeaders: true,
+    legacyHeaders: false,
+  })
+);
+app.use(
+  "/api/watchlist",
+  require("./routes/watchlist.routes"),
+  ratelimit({
+    windowMs: 1 * 60 * 1000, // 1 minute
+    max: 100, // limit each IP to 100 requests per windowMs
+    standardHeaders: true,
+    legacyHeaders: false,
+  })
+);
+app.use(
+  "/api/user",
+  require("./routes/user.routes"),
+  ratelimit({
+    windowMs: 1 * 60 * 1000, // 1 minute
+    max: 100, // limit each IP to 100 requests per windowMs
+    standardHeaders: true,
+    legacyHeaders: false,
+  })
+);
+app.use(
+  "/api/symbols",
+  require("./routes/ticker.routes"),
+  ratelimit({
+    windowMs: 1 * 60 * 1000, // 1 minute
+    max: 100, // limit each IP to 100 requests per windowMs
+    standardHeaders: true,
+    legacyHeaders: false,
+  })
+);
 
 process.on("SIGINT", () => {
   logger.info("Gracefully shutting down...");
