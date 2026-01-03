@@ -17,7 +17,7 @@ const app = express();
 app.use(helmet());
 app.use(
   cors({
-    origin: "http://localhost:8080",
+    origin: process.env.CORS_ORIGIN,
     credentials: true,
   })
 );
@@ -38,7 +38,7 @@ const PORT = process.env.PORT || 5000;
 const { startCronIfEnabled } = require("./cron/scheduler");
 startCronIfEnabled();
 
-const server = app.listen(PORT, () =>
+const server = app.listen(PORT, "0.0.0.0", () =>
   logger.info(`Server running on port ${PORT}`)
 );
 
